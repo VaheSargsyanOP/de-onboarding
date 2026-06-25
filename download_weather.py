@@ -2,11 +2,22 @@ import requests
 import json
 import argparse
 import uuid
+import logging
 
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
+
+from tenacity import retry
+from tenacity import stop_after_attempt
+from tenacity import wait_fixed
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 
 CITY_COORDINATES = {
@@ -14,6 +25,28 @@ CITY_COORDINATES = {
     "Paris": (48.8566, 2.3522),
     "London": (51.5074, -0.1278)
 }
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_fixed(5),
+    reraise=True
+)
+def fetch_weather(url, params):
+    """
+    Fetch weather data from Open-Meteo.
+    Retry up to 3 times if request fails.
+    """
+
+    response = requests.get(
+        url,
+        params=params,
+        timeout=30
+    )
+
+    response.raise_for_status()
+
+    return response.json()
 
 
 def weather_for_date(
@@ -25,7 +58,6 @@ def weather_for_date(
 ):
     """
     Fetch weather data for a single date.
-    If target_date is not provided, use today.
     """
 
     if target_date is None:
@@ -42,30 +74,65 @@ def weather_for_date(
         "timezone": "auto"
     }
 
-    response = requests.get(url, params=params)
+    try:
 
-    response.raise_for_status()
+        data = fetch_weather(
+            url=url,
+            params=params
+        )
 
-    data = response.json()
+        metadata = {
+            "ingestion_time": datetime.now(
+                timezone.utc
+            ).isoformat(),
+            "batch_id": batch_id,
+            "source": "open-meteo",
+            "city": city_name
+        }
 
-    metadata = {
-        "ingestion_time": datetime.now(timezone.utc).isoformat(),
-        "batch_id": batch_id,
-        "source": "open-meteo",
-        "city": city_name
-    }
+        final_payload = {
+            "metadata": metadata,
+            "weather_data": data
+        }
 
-    final_payload = {
-        "metadata": metadata,
-        "weather_data": data
-    }
+        file_name = (
+            f"data/weather_{city_name}_{target_date}.json"
+        )
 
-    file_name = f"data/weather_{city_name}_{target_date}.json"
+        with open(file_name, "w") as f:
+            json.dump(
+                final_payload,
+                f,
+                indent=4
+            )
 
-    with open(file_name, "w") as f:
-        json.dump(final_payload, f, indent=4)
+        logging.info(
+            f"Saved to {file_name}"
+        )
 
-    print(f"Saved to {file_name}")
+    except requests.exceptions.HTTPError as e:
+
+        logging.error(
+            f"HTTP error for {city_name}: {e}"
+        )
+
+    except requests.exceptions.RequestException as e:
+
+        logging.error(
+            f"Network error for {city_name}: {e}"
+        )
+
+    except json.JSONDecodeError as e:
+
+        logging.error(
+            f"Invalid JSON returned for {city_name}: {e}"
+        )
+
+    except Exception as e:
+
+        logging.error(
+            f"Unexpected error for {city_name}: {e}"
+        )
 
 
 def weather_for_range(
@@ -77,7 +144,8 @@ def weather_for_range(
     end_date
 ):
     """
-    Fetch weather for every day in the range.
+    Fetch weather data for every day
+    in a date range (inclusive).
     """
 
     start = datetime.strptime(
@@ -111,10 +179,12 @@ def weather_for_range(
 
 def get_city_coordinates(city_name):
     """
-    Return coordinates for supported cities.
+    Return coordinates
+    for supported cities.
     """
 
     if city_name not in CITY_COORDINATES:
+
         raise ValueError(
             f"City '{city_name}' is not supported."
         )
@@ -150,20 +220,25 @@ def main():
 
     args = parser.parse_args()
 
-    # One batch ID per execution
     batch_id = str(uuid.uuid4())
 
-    # Single city or all cities
     if args.city:
         cities_to_process = [args.city]
     else:
-        cities_to_process = list(CITY_COORDINATES.keys())
+        cities_to_process = list(
+            CITY_COORDINATES.keys()
+        )
+
+    logging.info(
+        f"Starting ingestion batch {batch_id}"
+    )
 
     for city_name in cities_to_process:
 
-        lat, lon = get_city_coordinates(city_name)
+        lat, lon = get_city_coordinates(
+            city_name
+        )
 
-        # Single date
         if args.date:
 
             weather_for_date(
@@ -174,7 +249,6 @@ def main():
                 target_date=args.date
             )
 
-        # Date range
         elif args.date_from and args.date_to:
 
             weather_for_range(
@@ -186,7 +260,6 @@ def main():
                 end_date=args.date_to
             )
 
-        # Today
         else:
 
             weather_for_date(
@@ -195,6 +268,10 @@ def main():
                 city_name=city_name,
                 batch_id=batch_id
             )
+
+    logging.info(
+        f"Completed ingestion batch {batch_id}"
+    )
 
 
 if __name__ == "__main__":
