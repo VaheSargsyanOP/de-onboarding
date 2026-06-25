@@ -1,10 +1,13 @@
 import requests
 import json
 import argparse
+import uuid
+
 
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
+from datetime import timezone
 
 
 CITY_COORDINATES = {
@@ -40,15 +43,24 @@ def weather_for_date(lat, lon, city_name, target_date=None):
 
     data = response.json()
 
+    metadata = {
+        "ingestion_time": datetime.now(timezone.utc).isoformat(),
+        "batch_id": str(uuid.uuid4()),
+        "source": "open-meteo",
+        "city": city_name
+    }
+
+    final_payload = {
+        "metadata": metadata,
+        "weather_data": data
+    }
+
     file_name = f"data/weather_{city_name}_{target_date}.json"
 
     with open(file_name, "w") as f:
-        json.dump(data, f, indent=4)
+        json.dump(final_payload, f, indent=4)
 
     print(f"Saved to {file_name}")
-
-    return data
-
 
 def weather_for_range(
     lat,
