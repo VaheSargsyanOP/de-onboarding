@@ -1,13 +1,24 @@
 import requests
 import json
+import argparse
 
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
 
 
-def weather_for_date(lat, lon, city_name, target_date=None):
+CITY_COORDINATES = {
+    "Yerevan": (40.1772, 44.5035),
+    "Paris": (48.8566, 2.3522),
+    "London": (51.5074, -0.1278)
+}
 
+
+def weather_for_date(lat, lon, city_name, target_date=None):
+    """
+    Fetch weather data for a single date.
+    If target_date is not provided, use today.
+    """
 
     if target_date is None:
         target_date = date.today().isoformat()
@@ -47,8 +58,7 @@ def weather_for_range(
     end_date
 ):
     """
-    Fetch weather data for every day
-    between start_date and end_date (inclusive).
+    Fetch weather for every day in the range.
     """
 
     start = datetime.strptime(
@@ -79,12 +89,82 @@ def weather_for_range(
         current += timedelta(days=1)
 
 
-if __name__ == "__main__":
+def get_city_coordinates(city_name):
+    """
+    Return coordinates for supported cities.
+    """
 
-    weather_for_range(
-        lat=40.1772,
-        lon=44.5035,
-        city_name="Yerevan",
-        start_date="2025-06-20",
-        end_date="2025-06-24"
+    if city_name not in CITY_COORDINATES:
+        raise ValueError(
+            f"City '{city_name}' is not supported."
+        )
+
+    return CITY_COORDINATES[city_name]
+
+
+def main():
+
+    parser = argparse.ArgumentParser(
+        description="Download weather data from Open-Meteo"
     )
+
+    parser.add_argument(
+        "--city",
+        required=True,
+        help="City name"
+    )
+
+    parser.add_argument(
+        "--date",
+        help="Single date (YYYY-MM-DD)"
+    )
+
+    parser.add_argument(
+        "--date_from",
+        help="Start date (YYYY-MM-DD)"
+    )
+
+    parser.add_argument(
+        "--date_to",
+        help="End date (YYYY-MM-DD)"
+    )
+
+    args = parser.parse_args()
+
+    city_name = args.city
+
+    lat, lon = get_city_coordinates(city_name)
+
+    # Case 1: Single date
+    if args.date:
+
+        weather_for_date(
+            lat=lat,
+            lon=lon,
+            city_name=city_name,
+            target_date=args.date
+        )
+
+    # Case 2: Date range
+    elif args.date_from and args.date_to:
+
+        weather_for_range(
+            lat=lat,
+            lon=lon,
+            city_name=city_name,
+            start_date=args.date_from,
+            end_date=args.date_to
+        )
+
+    # Case 3: Today (default)
+    else:
+
+        weather_for_date(
+            lat=lat,
+            lon=lon,
+            city_name=city_name
+        )
+
+
+if __name__ == "__main__":
+    main()
