@@ -3,7 +3,6 @@ import json
 import argparse
 import uuid
 
-
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
@@ -17,7 +16,13 @@ CITY_COORDINATES = {
 }
 
 
-def weather_for_date(lat, lon, city_name, target_date=None):
+def weather_for_date(
+    lat,
+    lon,
+    city_name,
+    batch_id,
+    target_date=None
+):
     """
     Fetch weather data for a single date.
     If target_date is not provided, use today.
@@ -45,7 +50,7 @@ def weather_for_date(lat, lon, city_name, target_date=None):
 
     metadata = {
         "ingestion_time": datetime.now(timezone.utc).isoformat(),
-        "batch_id": str(uuid.uuid4()),
+        "batch_id": batch_id,
         "source": "open-meteo",
         "city": city_name
     }
@@ -62,10 +67,12 @@ def weather_for_date(lat, lon, city_name, target_date=None):
 
     print(f"Saved to {file_name}")
 
+
 def weather_for_range(
     lat,
     lon,
     city_name,
+    batch_id,
     start_date,
     end_date
 ):
@@ -95,6 +102,7 @@ def weather_for_range(
             lat=lat,
             lon=lon,
             city_name=city_name,
+            batch_id=batch_id,
             target_date=target_date
         )
 
@@ -122,7 +130,6 @@ def main():
 
     parser.add_argument(
         "--city",
-        required=True,
         help="City name"
     )
 
@@ -143,39 +150,51 @@ def main():
 
     args = parser.parse_args()
 
-    city_name = args.city
+    # One batch ID per execution
+    batch_id = str(uuid.uuid4())
 
-    lat, lon = get_city_coordinates(city_name)
-
-    # Case 1: Single date
-    if args.date:
-
-        weather_for_date(
-            lat=lat,
-            lon=lon,
-            city_name=city_name,
-            target_date=args.date
-        )
-
-    # Case 2: Date range
-    elif args.date_from and args.date_to:
-
-        weather_for_range(
-            lat=lat,
-            lon=lon,
-            city_name=city_name,
-            start_date=args.date_from,
-            end_date=args.date_to
-        )
-
-    # Case 3: Today (default)
+    # Single city or all cities
+    if args.city:
+        cities_to_process = [args.city]
     else:
+        cities_to_process = list(CITY_COORDINATES.keys())
 
-        weather_for_date(
-            lat=lat,
-            lon=lon,
-            city_name=city_name
-        )
+    for city_name in cities_to_process:
+
+        lat, lon = get_city_coordinates(city_name)
+
+        # Single date
+        if args.date:
+
+            weather_for_date(
+                lat=lat,
+                lon=lon,
+                city_name=city_name,
+                batch_id=batch_id,
+                target_date=args.date
+            )
+
+        # Date range
+        elif args.date_from and args.date_to:
+
+            weather_for_range(
+                lat=lat,
+                lon=lon,
+                city_name=city_name,
+                batch_id=batch_id,
+                start_date=args.date_from,
+                end_date=args.date_to
+            )
+
+        # Today
+        else:
+
+            weather_for_date(
+                lat=lat,
+                lon=lon,
+                city_name=city_name,
+                batch_id=batch_id
+            )
 
 
 if __name__ == "__main__":
