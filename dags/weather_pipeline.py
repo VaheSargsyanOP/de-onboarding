@@ -10,6 +10,7 @@ with DAG(
     start_date=datetime(2026, 1, 1),
     schedule="0 6 * * *",
     catchup=False,
+    max_active_runs=1,
     tags=["weather"],
 ) as dag:
 
@@ -17,6 +18,13 @@ with DAG(
         task_id="download_weather",
         bash_command="""
         cd /opt/airflow/project
+
+        echo "Logical date: {{ ds }}"
+        echo "Run ID: {{ run_id }}"
+        echo "Dag Run Config: {{ dag_run.conf }}"
+        echo "--------------------------------"
+
+
 
         if [ -n "{{ dag_run.conf.get('date_from', '') }}" ] && \
         [ -n "{{ dag_run.conf.get('date_to', '') }}" ]; then
@@ -36,6 +44,7 @@ with DAG(
 
             python download_weather.py \
                 --city Yerevan
+                --date {{ ds }}
 
         fi
         """
