@@ -56,4 +56,14 @@ with DAG(
         """,
     )
 
-    download_weather >> load_to_bigquery
+    build_silver = BashOperator(
+    task_id="build_silver",
+    cwd="{{ dag.folder }}",
+    bash_command="""
+    bq query \
+        --use_legacy_sql=false \
+        < sql/build_silver.sql
+    """,
+)
+
+    download_weather >> load_to_bigquery >> build_silver

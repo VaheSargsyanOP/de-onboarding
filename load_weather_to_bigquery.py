@@ -1,5 +1,6 @@
 import json
 
+from pathlib import Path
 from datetime import datetime
 
 from google.cloud import storage
@@ -11,7 +12,6 @@ PROJECT_ID = "project-347a7b51-e6cd-40d3-9ac"
 DATASET = "weather"
 
 STAGE_TABLE = "weather_raw_stage"
-BRONZE_TABLE = "weather_raw_bronze"
 
 BUCKET = "us-central1-weather-project-7b4142b8-bucket"
 
@@ -68,16 +68,14 @@ stage_table_id = (
     f"{PROJECT_ID}.{DATASET}.{STAGE_TABLE}"
 )
 
-bronze_table_id = (
-    f"{PROJECT_ID}.{DATASET}.{BRONZE_TABLE}"
-)
-
 
 print("Loading data into staging table...")
+
 
 job_config = bigquery.LoadJobConfig(
     write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE
 )
+
 
 load_job = client_bq.load_table_from_json(
     rows,
@@ -90,68 +88,19 @@ load_job.result()
 print(f"Loaded {len(rows)} rows into staging.")
 
 
-merge_query = f"""
-MERGE `{bronze_table_id}` T
+# -------------------------------------------------------
+# Execute build_silver.sql
+# -------------------------------------------------------
 
-USING (
+sql_file = Path(__file__).parent / "sql" / "build_silver.sql"
 
-SELECT
-    city,
-    observed_date,
-    observed_hour,
-    ANY_VALUE(temperature_c) AS temperature_c,
-    MAX(ingestion_time) AS ingestion_time,
-    ANY_VALUE(batch_id) AS batch_id,
-    ANY_VALUE(source) AS source
+with open(sql_file, "r") as f:
+    sql = f.read()
 
-FROM `{stage_table_id}`
+print("Building Silver table...")
 
-GROUP BY
-    city,
-    observed_date,
-    observed_hour
+query_job = client_bq.query(sql)
 
-) S
+query_job.result()
 
-ON
-    T.city = S.city
-    AND T.observed_date = S.observed_date
-    AND T.observed_hour = S.observed_hour
-
-WHEN MATCHED THEN
-UPDATE SET
-    temperature_c = S.temperature_c,
-    ingestion_time = S.ingestion_time,
-    batch_id = S.batch_id,
-    source = S.source
-
-WHEN NOT MATCHED THEN
-INSERT (
-    city,
-    observed_date,
-    observed_hour,
-    temperature_c,
-    ingestion_time,
-    batch_id,
-    source
-)
-
-VALUES (
-    S.city,
-    S.observed_date,
-    S.observed_hour,
-    S.temperature_c,
-    S.ingestion_time,
-    S.batch_id,
-    S.source
-)
-"""
-
-
-print("Running MERGE...")
-
-merge_job = client_bq.query(merge_query)
-
-merge_job.result()
-
-print("Merge completed successfully.")
+print("Silver table built successfully.")
