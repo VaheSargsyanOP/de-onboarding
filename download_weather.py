@@ -3,6 +3,9 @@ import json
 import argparse
 import uuid
 import logging
+import os
+
+from google.cloud import storage
 
 from datetime import date
 from datetime import datetime
@@ -20,11 +23,36 @@ logging.basicConfig(
 )
 
 
+BUCKET_NAME = "us-central1-weather-project-7b4142b8-bucket"
+
+
 CITY_COORDINATES = {
     "Yerevan": (40.1772, 44.5035),
     "Paris": (48.8566, 2.3522),
     "London": (51.5074, -0.1278)
 }
+
+
+def upload_to_gcs(
+    bucket_name,
+    source_file,
+    destination_blob
+):
+    """
+    Upload a local file to Google Cloud Storage.
+    """
+
+    client = storage.Client()
+
+    bucket = client.bucket(bucket_name)
+
+    blob = bucket.blob(destination_blob)
+
+    blob.upload_from_filename(source_file)
+
+    logging.info(
+        f"Uploaded to gs://{bucket_name}/{destination_blob}"
+    )
 
 
 @retry(
@@ -95,8 +123,13 @@ def weather_for_date(
             "weather_data": data
         }
 
+        os.makedirs(
+            "/tmp/weather",
+            exist_ok=True
+        )
+
         file_name = (
-            f"data/weather_{city_name}_{target_date}.json"
+            f"/tmp/weather/weather_{city_name}_{target_date}.json"
         )
 
         with open(file_name, "w") as f:
@@ -106,8 +139,27 @@ def weather_for_date(
                 indent=4
             )
 
+        year = target_date[:4]
+        month = target_date[5:7]
+        day = target_date[8:10]
+
+        destination_blob = (
+            f"raw/weather/"
+            f"tenant={city_name}/"
+            f"year={year}/"
+            f"month={month}/"
+            f"day={day}/"
+            f"batch_{batch_id}.json"
+        )
+
+        upload_to_gcs(
+            bucket_name=BUCKET_NAME,
+            source_file=file_name,
+            destination_blob=destination_blob
+        )
+
         logging.info(
-            f"Saved to {file_name}"
+            f"Saved weather for {city_name} ({target_date})"
         )
 
     except requests.exceptions.HTTPError as e:
@@ -270,8 +322,7 @@ def main():
             )
 
     logging.info(
-        f"Completed ingestion batch {batch_id}"
-    )
+        f"Completed ingestion batch {batch_id}")
 
 
 if __name__ == "__main__":

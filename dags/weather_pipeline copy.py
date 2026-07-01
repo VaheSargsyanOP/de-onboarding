@@ -16,15 +16,18 @@ with DAG(
 
     download_weather = BashOperator(
         task_id="download_weather",
-        cwd="{{ dag.folder }}",
         bash_command="""
+        cd /home/airflow/gcp/dags
+
         echo "Logical date: {{ ds }}"
         echo "Run ID: {{ run_id }}"
         echo "Dag Run Config: {{ dag_run.conf }}"
         echo "--------------------------------"
 
+
+
         if [ -n "{{ dag_run.conf.get('date_from', '') }}" ] && \
-           [ -n "{{ dag_run.conf.get('date_to', '') }}" ]; then
+        [ -n "{{ dag_run.conf.get('date_to', '') }}" ]; then
 
             python download_weather.py \
                 --city Yerevan \
@@ -44,16 +47,5 @@ with DAG(
                 --date {{ ds }}
 
         fi
-        """,
-    )
-
-    load_to_bigquery = BashOperator(
-        task_id="load_to_bigquery",
-        cwd="{{ dag.folder }}",
-        bash_command="""
-        echo "Loading weather into BigQuery..."
-        python load_weather_to_bigquery.py
-        """,
-    )
-
-    download_weather >> load_to_bigquery
+        """
+)
