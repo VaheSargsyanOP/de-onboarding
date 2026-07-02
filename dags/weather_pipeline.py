@@ -65,5 +65,14 @@ with DAG(
         < sql/build_silver.sql
     """,
 )
+    
+    quality_check = BashOperator(
+    task_id="quality_check",
+    cwd="{{ dag.folder }}",
+    bash_command="""
+    echo "Running Silver quality checks..."
+    python check_silver.py
+    """,
+)
 
-    download_weather >> load_to_bigquery >> build_silver
+    download_weather >> load_to_bigquery >> build_silver >> quality_check
