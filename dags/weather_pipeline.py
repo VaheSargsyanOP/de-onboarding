@@ -64,7 +64,7 @@ with DAG(
         --use_legacy_sql=false \
         < sql/build_silver.sql
     """,
-)
+    )
     
     quality_check = BashOperator(
     task_id="quality_check",
@@ -73,6 +73,15 @@ with DAG(
     echo "Running Silver quality checks..."
     python check_silver.py
     """,
-)
+    )
+    
+    build_gold = BashOperator(
+    task_id="build_gold",
+    cwd="{{ dag.folder }}",
+    bash_command="""
+    echo "Building Gold table..."
+    python build_gold.py
+    """,
+    )   
 
-    download_weather >> load_to_bigquery >> build_silver >> quality_check
+    download_weather >> load_to_bigquery >> build_silver >> quality_check >> build_gold
