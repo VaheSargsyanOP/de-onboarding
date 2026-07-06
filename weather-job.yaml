@@ -1,0 +1,22 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: weather-extract
+
+spec:
+  ttlSecondsAfterFinished: 3600
+
+  template:
+    spec:
+      serviceAccountName: weather-etl
+      restartPolicy: Never
+
+      nodeSelector:
+        cloud.google.com/gke-nodepool: default-pool-new
+
+      containers:
+        - name: weather-etl
+          image: us-central1-docker.pkg.dev/project-347a7b51-e6cd-40d3-9ac/weather/weather-etl:v4
+          env:
+            - name: GOOGLE_CLOUD_PROJECT
+              value: project-347a7b51-e6cd-40d3-9ac

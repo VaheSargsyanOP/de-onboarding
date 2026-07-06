@@ -4,6 +4,7 @@ import argparse
 import uuid
 import logging
 import os
+import subprocess
 
 from google.cloud import storage
 
@@ -15,7 +16,6 @@ from datetime import timezone
 from tenacity import retry
 from tenacity import stop_after_attempt
 from tenacity import wait_fixed
-
 
 logging.basicConfig(
     level=logging.INFO,
@@ -322,7 +322,17 @@ def main():
             )
 
     logging.info(
-        f"Completed ingestion batch {batch_id}")
+    f"Completed ingestion batch {batch_id}"
+    )
+
+    logging.info("Starting BigQuery load...")
+
+    subprocess.run(
+    ["python", "load_weather_to_bigquery.py"],
+    check=True
+    )
+
+    logging.info("BigQuery load completed.")
 
 
 if __name__ == "__main__":

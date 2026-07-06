@@ -92,7 +92,7 @@ print(f"Loaded {len(rows)} rows into staging.")
 # Execute build_silver.sql
 # -------------------------------------------------------
 
-sql_file = Path(__file__).parent / "sql" / "build_silver.sql"
+sql_file = Path(__file__).parent / "dags" / "sql" / "build_silver.sql"
 
 with open(sql_file, "r") as f:
     sql = f.read()
