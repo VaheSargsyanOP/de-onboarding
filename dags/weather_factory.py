@@ -1,26 +1,20 @@
-import os
-from datetime import datetime, timedelta
+"""Per-city daily weather download DAGs.
+
+Thin orchestration only. Download-only (no load/silver/gold/quality) -
+that asymmetry with weather_pipeline.py is a pre-existing product
+decision, not something this factory resolves.
+"""
+from datetime import datetime
 
 from airflow import DAG
-from airflow.providers.google.cloud.operators.kubernetes_engine import (
-    GKEStartPodOperator,
-)
-from kubernetes.client import models as k8s
+from airflow.providers.google.cloud.operators.kubernetes_engine import GKEStartPodOperator
+
+from common.pod_defaults import common_pod_kwargs, pod_name
+
+TENANTS = ["Yerevan", "Paris", "London"]
 
 
-IMAGE = os.getenv(
-    "WEATHER_ETL_IMAGE",
-    "us-central1-docker.pkg.dev/project-347a7b51-e6cd-40d3-9ac/weather/weather-etl:v5",
-)
-PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "project-347a7b51-e6cd-40d3-9ac")
-LOCATION = os.getenv("GKE_LOCATION", "us-central1")
-CLUSTER_NAME = os.getenv("GKE_CLUSTER_NAME", "learning-cluster")
-NAMESPACE = os.getenv("GKE_NAMESPACE", "default")
-SERVICE_ACCOUNT = os.getenv("WEATHER_POD_SERVICE_ACCOUNT", "weather-etl")
-
-
-def build_dag(city):
-
+def build_dag(city: str) -> DAG:
     with DAG(
         dag_id=f"weather_{city.lower()}",
         description=f"Weather ingestion pipeline for {city}",
@@ -34,40 +28,14 @@ def build_dag(city):
 
         GKEStartPodOperator(
             task_id="download_weather",
-            name=f"weather-download-{city.lower()}-{{{{ dag_run.logical_date.strftime('%Y%m%d%H%M%S') }}}}",
-            project_id=PROJECT_ID,
-            location=LOCATION,
-            cluster_name=CLUSTER_NAME,
-            namespace=NAMESPACE,
-            service_account_name=SERVICE_ACCOUNT,
-            image=IMAGE,
-            cmds=["bash", "-c"],
-            arguments=[f"""
-python /app/download_weather.py --city {city} --date "{{{{ ds }}}}"
-"""],
-            env_vars=[
-                k8s.V1EnvVar(name="GOOGLE_CLOUD_PROJECT", value=PROJECT_ID),
-                k8s.V1EnvVar(name="PYTHONUNBUFFERED", value="1"),
-            ],
-            labels={"app": "weather-etl", "pipeline": f"weather-{city.lower()}"},
-            container_resources=k8s.V1ResourceRequirements(
-                requests={"cpu": "250m", "memory": "512Mi"},
-                limits={"cpu": "1", "memory": "1Gi"},
-            ),
-            is_delete_operator_pod=True,
-            get_logs=False,
-            execution_timeout=timedelta(minutes=10),
-            image_pull_policy="Always",
+            name=pod_name(f"weather-download-{city.lower()}"),
+            cmds=["python", "-m"],
+            arguments=["etl.extract.download_weather", "--city", city, "--date", "{{ ds }}"],
+            **common_pod_kwargs(pipeline_label=f"weather-{city.lower()}"),
         )
 
     return dag
 
-
-TENANTS = [
-    "Yerevan",
-    "Paris",
-    "London",
-]
 
 for tenant in TENANTS:
     globals()[f"weather_{tenant.lower()}"] = build_dag(tenant)

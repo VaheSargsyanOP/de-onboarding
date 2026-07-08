@@ -1,0 +1,12 @@
+# City -> coordinates used by the extract stage.
+# Adding a city here does not automatically create a factory DAG for it;
+# see dags/weather_factory.py TENANTS list.
+Yerevan:
+  lat: 40.1772
+  lon: 44.5035
+Paris:
+  lat: 48.8566
+  lon: 2.3522
+London:
+  lat: 51.5074
+  lon: -0.1278

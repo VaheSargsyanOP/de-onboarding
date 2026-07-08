@@ -4,5 +4,8 @@ __pycache__/
 data/
 logs/
 .DS_Store
-config/
+# Leading slash anchors this to the repo root only (local-dev-only
+# config/airflow.cfg) - an unanchored "config/" would also match
+# dags/config/, which is real tracked source (settings.py, cities.yaml).
+/config/
 .env

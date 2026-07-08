@@ -1,3 +1,7 @@
+# Standalone kubectl-apply smoke-test Job (not Airflow-managed) - useful
+# for testing the image directly against GKE without going through
+# Composer. References :v6, the live image built from the refactored
+# Dockerfile (etl.* module layout) via scripts/build_and_push.sh.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -13,15 +17,13 @@ spec:
       restartPolicy: Never
       containers:
         - name: weather-etl
-          image: us-central1-docker.pkg.dev/project-347a7b51-e6cd-40d3-9ac/weather/weather-etl:v5
+          image: us-central1-docker.pkg.dev/project-347a7b51-e6cd-40d3-9ac/weather/weather-etl:v6
           imagePullPolicy: Always
           env:
             - name: GOOGLE_CLOUD_PROJECT
               value: project-347a7b51-e6cd-40d3-9ac
             - name: GCS_BUCKET
               value: us-central1-weather-project-7b4142b8-bucket
-            - name: BIGQUERY_DATASET
-              value: weather
           resources:
             requests:
               cpu: "250m"
