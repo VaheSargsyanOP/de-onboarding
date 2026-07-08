@@ -1,87 +1,71 @@
+"""Weather ETL orchestrated entirely on GKE.
+
+Thin orchestration only - all business logic lives in etl.* (executed
+inside the pods this DAG launches), never here. Task chain:
+download -> load bronze -> build silver -> quality check -> build gold.
+
+Yerevan-only, manually triggered (schedule=None) - see weather_factory.py
+for the separate daily per-city download-only DAGs. This asymmetry is a
+pre-existing product decision, not something this DAG resolves.
+"""
 from datetime import datetime
 
 from airflow import DAG
-from airflow.providers.standard.operators.bash import BashOperator
+from airflow.providers.google.cloud.operators.kubernetes_engine import GKEStartPodOperator
 
+from common.pod_defaults import common_pod_kwargs, pod_name
+
+POD_KWARGS = common_pod_kwargs(pipeline_label="weather-pipeline")
 
 with DAG(
     dag_id="weather_pipeline",
-    description="Weather ingestion pipeline",
+    description="Weather ETL orchestrated entirely on GKE",
     start_date=datetime(2026, 1, 1),
     schedule=None,
     catchup=False,
     max_active_runs=1,
-    tags=["weather"],
+    is_paused_upon_creation=False,
+    tags=["weather", "gke", "composer3"],
 ) as dag:
 
-    download_weather = BashOperator(
+    download_weather = GKEStartPodOperator(
         task_id="download_weather",
-        cwd="{{ dag.folder }}",
-        bash_command="""
-        echo "Logical date: {{ ds }}"
-        echo "Run ID: {{ run_id }}"
-        echo "Dag Run Config: {{ dag_run.conf }}"
-        echo "--------------------------------"
-
-        if [ -n "{{ dag_run.conf.get('date_from', '') }}" ] && \
-           [ -n "{{ dag_run.conf.get('date_to', '') }}" ]; then
-
-            python download_weather.py \
-                --city Yerevan \
-                --date_from {{ dag_run.conf.get('date_from') }} \
-                --date_to {{ dag_run.conf.get('date_to') }}
-
-        elif [ -n "{{ dag_run.conf.get('date', '') }}" ]; then
-
-            python download_weather.py \
-                --city Yerevan \
-                --date {{ dag_run.conf.get('date') }}
-
-        else
-
-            python download_weather.py \
-                --city Yerevan \
-                --date {{ ds }}
-
-        fi
-        """,
+        name=pod_name("weather-download"),
+        cmds=["python", "-m"],
+        arguments=["etl.extract.download_weather", "--city", "Yerevan", "--date", "{{ ds }}"],
+        **POD_KWARGS,
     )
 
-    load_to_bigquery = BashOperator(
+    load_to_bigquery = GKEStartPodOperator(
         task_id="load_to_bigquery",
-        cwd="{{ dag.folder }}",
-        bash_command="""
-        echo "Loading weather into BigQuery..."
-        python load_weather_to_bigquery.py
-        """,
+        name=pod_name("weather-load"),
+        cmds=["python", "-m"],
+        arguments=["etl.bronze.load_bronze"],
+        **POD_KWARGS,
     )
 
-    build_silver = BashOperator(
-    task_id="build_silver",
-    cwd="{{ dag.folder }}",
-    bash_command="""
-    bq query \
-        --use_legacy_sql=false \
-        < sql/build_silver.sql
-    """,
+    build_silver = GKEStartPodOperator(
+        task_id="build_silver",
+        name=pod_name("weather-silver"),
+        cmds=["python", "-m"],
+        arguments=["etl.silver.build_silver"],
+        **POD_KWARGS,
     )
-    
-    quality_check = BashOperator(
-    task_id="quality_check",
-    cwd="{{ dag.folder }}",
-    bash_command="""
-    echo "Running Silver quality checks..."
-    python check_silver.py
-    """,
+
+    quality_check = GKEStartPodOperator(
+        task_id="quality_check",
+        name=pod_name("weather-quality"),
+        cmds=["python", "-m"],
+        arguments=["etl.quality.check_silver"],
+        **POD_KWARGS,
     )
-    
-    build_gold = BashOperator(
-    task_id="build_gold",
-    cwd="{{ dag.folder }}",
-    bash_command="""
-    echo "Building Gold table..."
-    python build_gold.py
-    """,
-    )   
+
+    build_gold = GKEStartPodOperator(
+        task_id="build_gold",
+        name=pod_name("weather-gold"),
+        cmds=["python", "-m"],
+        arguments=["etl.gold.build_gold"],
+        **POD_KWARGS,
+    )
 
     download_weather >> load_to_bigquery >> build_silver >> quality_check >> build_gold

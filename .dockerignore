@@ -1,0 +1,27 @@
+.venv/
+**/__pycache__/
+**/*.pyc
+**/.DS_Store
+.git/
+.env
+data/
+logs/
+config/
+archive/
+k8s/
+README.md
+docker-compose.yaml
+weather-job.yaml
+
+# DAG-construction-only code: must never end up importable from the
+# image (dags/config/ is the one intentional exception - it's copied
+# explicitly by the Dockerfile as the image's shared config source).
+dags/*.py
+dags/common/
+dags/.airflowignore
+
+# Dev/test-only, never shipped to the runtime image.
+tests/
+requirements-dev.txt
+scripts/
+docs/

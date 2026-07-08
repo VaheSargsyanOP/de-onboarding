@@ -1,0 +1,10 @@
+# Belt-and-suspenders: these are plain support modules (config, pod-kwarg
+# builders), not Airflow DAG files. Airflow's DAG file processor already
+# uses a "does this file mention airflow/dag" heuristic before fully
+# parsing a file, which likely already skips these - but after today's
+# incident (non-DAG scripts with real BigQuery side effects ending up in
+# Composer's DAGs GCS folder and getting imported on every parse cycle),
+# don't rely on an implicit heuristic for something this expensive to get
+# wrong again.
+common/
+config/
