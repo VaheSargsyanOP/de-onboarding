@@ -4,7 +4,6 @@ idna==3.18
 urllib3==2.7.0
 requests==2.32.3
 tenacity==9.0.0
-
 google-cloud-storage
 google-auth
 google-cloud-bigquery

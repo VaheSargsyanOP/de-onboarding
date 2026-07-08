@@ -4,7 +4,6 @@ import argparse
 import uuid
 import logging
 import os
-import subprocess
 
 from google.cloud import storage
 
@@ -23,8 +22,8 @@ logging.basicConfig(
 )
 
 
-BUCKET_NAME = "us-central1-weather-project-7b4142b8-bucket"
-
+PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "project-347a7b51-e6cd-40d3-9ac")
+BUCKET_NAME = os.getenv("GCS_BUCKET", "us-central1-weather-project-7b4142b8-bucket")
 
 CITY_COORDINATES = {
     "Yerevan": (40.1772, 44.5035),
@@ -42,7 +41,7 @@ def upload_to_gcs(
     Upload a local file to Google Cloud Storage.
     """
 
-    client = storage.Client()
+    client = storage.Client(project=PROJECT_ID)
 
     bucket = client.bucket(bucket_name)
 
@@ -324,15 +323,6 @@ def main():
     logging.info(
     f"Completed ingestion batch {batch_id}"
     )
-
-    logging.info("Starting BigQuery load...")
-
-    subprocess.run(
-    ["python", "load_weather_to_bigquery.py"],
-    check=True
-    )
-
-    logging.info("BigQuery load completed.")
 
 
 if __name__ == "__main__":

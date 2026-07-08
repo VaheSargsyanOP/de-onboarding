@@ -1,23 +1,19 @@
 import json
-
-from pathlib import Path
+import os
 from datetime import datetime
+from pathlib import Path
 
-from google.cloud import storage
 from google.cloud import bigquery
+from google.cloud import storage
 
 
-PROJECT_ID = "project-347a7b51-e6cd-40d3-9ac"
+PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "project-347a7b51-e6cd-40d3-9ac")
+DATASET = os.getenv("BIGQUERY_DATASET", "weather")
+STAGE_TABLE = os.getenv("BIGQUERY_STAGE_TABLE", "weather_raw_bronze")
+BUCKET = os.getenv("GCS_BUCKET", "us-central1-weather-project-7b4142b8-bucket")
 
-DATASET = "weather"
-
-STAGE_TABLE = "weather_raw_stage"
-
-BUCKET = "us-central1-weather-project-7b4142b8-bucket"
-
-
-client_storage = storage.Client()
-client_bq = bigquery.Client()
+client_storage = storage.Client(project=PROJECT_ID)
+client_bq = bigquery.Client(project=PROJECT_ID)
 
 bucket = client_storage.bucket(BUCKET)
 

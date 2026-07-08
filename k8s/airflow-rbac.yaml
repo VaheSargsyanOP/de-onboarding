@@ -1,0 +1,33 @@
+# ServiceAccount used as the *identity of the ETL pods themselves*
+# (referenced via service_account_name in GKEStartPodOperator).
+#
+# Composer 3 does NOT create these pods using this KSA - GKEStartPodOperator
+# calls the GKE control plane over the Google API using the Composer
+# environment's own IAM identity. That identity needs the IAM role
+# roles/container.developer (or equivalent) on this project - granted at
+# the GCP IAM level, not via an in-cluster Role/RoleBinding, so it cannot
+# be expressed in this file. See README "Required IAM bindings".
+#
+# This KSA therefore only needs to let the running container authenticate
+# to Google Cloud APIs (BigQuery, GCS) via Workload Identity. It must NOT
+# be granted Kubernetes API permissions (pod create/delete, secret read) -
+# the previous version of this file granted those, which was a leftover
+# from an earlier in-cluster KubernetesPodOperator design and was both
+# ineffective (Composer never authenticates as this KSA) and an
+# unnecessary privilege escalation for a container that only talks to
+# BigQuery/GCS.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: weather-etl
+  namespace: default
+  annotations:
+    # REQUIRED for Workload Identity: bind this KSA to a Google Service
+    # Account that holds roles/bigquery.dataEditor, roles/bigquery.jobUser
+    # and roles/storage.objectAdmin (scoped to the weather bucket).
+    # Replace with your actual GSA email, then run:
+    #   gcloud iam service-accounts add-iam-policy-binding \
+    #     weather-etl@project-347a7b51-e6cd-40d3-9ac.iam.gserviceaccount.com \
+    #     --role roles/iam.workloadIdentityUser \
+    #     --member "serviceAccount:project-347a7b51-e6cd-40d3-9ac.svc.id.goog[default/weather-etl]"
+    iam.gke.io/gcp-service-account: weather-etl@project-347a7b51-e6cd-40d3-9ac.iam.gserviceaccount.com

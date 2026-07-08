@@ -1,10 +1,12 @@
+import os
+
 from google.cloud import bigquery
 
-PROJECT_ID = "project-347a7b51-e6cd-40d3-9ac"
-DATASET = "weather"
-TABLE = "weather_clean_silver"
+PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "project-347a7b51-e6cd-40d3-9ac")
+DATASET = os.getenv("BIGQUERY_DATASET", "weather")
+TABLE = os.getenv("BIGQUERY_SILVER_TABLE", "weather_clean_silver")
 
-client = bigquery.Client()
+client = bigquery.Client(project=PROJECT_ID)
 
 table_id = f"{PROJECT_ID}.{DATASET}.{TABLE}"
 
